@@ -1,44 +1,42 @@
 //create web server
 const express = require('express');
 const app = express();
-const port = 3000;
-const bodyParser = require('body-parser');
-const fs = require('fs');
 const path = require('path');
-const { json } = require('body-parser');
 
-app.use(bodyParser.json());
-app.use(express.static('public'));
+//initialize the database
+const db = require('./db');
+const { Comment } = db.models;
 
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'comments.html'));
+//middleware
+app.use(require('body-parser').json());
+app.use('/dist', express.static(path.join(__dirname, 'dist')));
+
+//routes
+app.get('/', (req, res, next) => res.sendFile(path.join(__dirname, 'index.html')));
+
+app.get('/api/comments', (req, res, next) => {
+  Comment.findAll()
+    .then(comments => res.send(comments))
+    .catch(next);
 });
 
-app.get('/comments', (req, res) => {
-    fs.readFile(path.join(__dirname, 'comments.json'), 'utf8', (err, data) => {
-        if (err) {
-            res.status(500).send('Internal Server Error');
-        }
-        res.json(JSON.parse(data));
-    });
+app.post('/api/comments', (req, res, next) => {
+  Comment.create(req.body)
+    .then(comment => res.status(201).send(comment))
+    .catch(next);
 });
 
-app.post('/comments', (req, res) => {
-    fs.readFile(path.join(__dirname, 'comments.json'), 'utf8', (err, data) => {
-        if (err) {
-            res.status(500).send('Internal Server Error');
-        }
-        const comments = JSON.parse(data);
-        comments.push(req.body);
-        fs.writeFile(path.join(__dirname, 'comments.json'), JSON.stringify(comments), (err) => {
-            if (err) {
-                res.status(500).send('Internal Server Error');
-            }
-            res.json({ success: true });
-        });
-    });
+app.delete('/api/comments/:id', (req, res, next) => {
+  Comment.findByPk(req.params.id)
+    .then(comment => comment.destroy())
+    .then(() => res.sendStatus(204))
+    .catch(next);
 });
 
-app.listen(port, () => {
-    console.log(`Server is listening on port ${port}`);
-});
+//server
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`listening on port ${port}`));
+
+db.sync()
+  .then(() => db.seed());
+//end Path: comments.js
